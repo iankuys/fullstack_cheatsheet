@@ -1,0 +1,25 @@
+# GitHub Pages Configuration
+title: "Full-Stack Interview Cheat Sheets"
+description: "Comprehensive reference materials for technical interviews"
+theme: minima
+
+# Enable plugins
+plugins:
+  - jekyll-feed
+  - jekyll-sitemap
+
+# Navigation
+header_pages:
+  - BACKEND.md
+  - FRONTEND.md
+  - WS.md
+  - INTERVIEW_PREP.md
+
+# Markdown settings
+markdown: kramdown
+highlighter: rouge
+
+# Mobile-friendly settings
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge

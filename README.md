@@ -1,11 +1,29 @@
-# 🧠 OpenMind Interview Prep (Repetition-Driven Strategy)
+# 🚀 Full-Stack Interview Cheat Sheets
+
+Comprehensive technical interview preparation materials - **mobile-friendly and ready to use!**
+
+## 📚 Cheat Sheets
+
+### [🔧 Backend Development](BACKEND.md)
+FastAPI, PostgreSQL, JWT authentication, WebSockets, PDF processing
+
+### [🎨 Frontend Development](FRONTEND.md) 
+HTML5, CSS3, JavaScript ES6+, React hooks, testing best practices
+
+### [🌐 WebSocket Communication](WS.md)
+Real-time chat, connection management, authentication, debugging
+
+### [🎯 Interview Preparation](INTERVIEW_PREP.md)
+Company research, system design, behavioral questions, technical scenarios
+
+---
+
+## 🧠 OpenMind Interview Prep (Repetition-Driven Strategy)
 
 **Role:** Founding Full Stack Engineer
 **Tech Stack:** React, React Native, FastAPI, LLM Integration
 **Interview Length:** 1 hour (practical, non-LeetCode)
 **Goal:** Show fluent, product-minded mastery of a full-stack chatbot app with LLM backend.
-
----
 
 ## ✅ Focus Areas (Ranked by ROI)
 
