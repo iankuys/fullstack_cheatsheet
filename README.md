@@ -13,8 +13,8 @@ HTML5, CSS3, JavaScript ES6+, React hooks, testing best practices
 ### [🌐 WebSocket Communication](WS.md)
 Real-time chat, connection management, authentication, debugging
 
-### [🎯 Interview Preparation](INTERVIEW_PREP.md)
-Company research, system design, behavioral questions, technical scenarios
+### [🏗️ System Design](SYSTEM_DESIGN.md)
+Scalable architecture, system design patterns, interview scenarios
 
 ---
 
