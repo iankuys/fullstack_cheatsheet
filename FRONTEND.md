@@ -1,26 +1,38 @@
-# 🎨 Frontend Cheat Sheet
+# 🎨 Frontend Development Cheat Sheet
 
 ## 📝 HTML Essentials
 
 ```html
 <!-- Semantic Structure -->
-<header><nav></nav></header>
-<main>
-  <section><article></article></section>
-  <aside></aside>
-</main>
-<footer></footer>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Semantic HTML Example</title>
+</head>
+<body>
+    <header><nav></nav></header>
+    <main>
+        <section><article><h1>Title</h1><p>Content...</p></article></section>
+        <aside><h2>Related Links</h2></aside>
+    </main>
+    <footer><p>&copy; 2024 Company Name</p></footer>
+</body>
+</html>
 
 <!-- Form Inputs -->
 <input type="text|email|password|number|date|file">
 <input type="checkbox|radio" name="group">
 <input required minlength="3" maxlength="20">
+<input type="file" accept=".pdf,.jpg,.png">
 
 <!-- Accessibility -->
 <label for="email">Email:</label>
 <input id="email" type="email">
 <button aria-label="Close">×</button>
 <img src="chart.png" alt="Sales up 25%">
+<a href="#main-content" class="skip-link">Skip to content</a>
 ```
 
 ## ⚡ JavaScript Essentials
@@ -187,6 +199,142 @@ function useForm(initialValues) {
     setValues(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
   return { values, handleChange };
+}
+```
+
+---
+
+## 🔧 Common Interview Topics
+
+### State Management Patterns
+
+```javascript
+// Local state
+const [user, setUser] = useState(null);
+
+// Context for global state
+const UserContext = createContext();
+
+function UserProvider({ children }) {
+  const [user, setUser] = useState(null);
+  
+  const login = async (credentials) => {
+    const user = await api.login(credentials);
+    setUser(user);
+  };
+
+  return (
+    <UserContext.Provider value={{ user, login }}>
+      {children}
+    </UserContext.Provider>
+  );
+}
+
+// Custom hook for using context
+function useUser() {
+  const context = useContext(UserContext);
+  if (!context) {
+    throw new Error('useUser must be used within UserProvider');
+  }
+  return context;
+}
+```
+
+### API Integration
+
+```javascript
+// Custom hook for API calls
+function useApi(url) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const result = await response.json();
+        setData(result);
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [url]);
+
+  return { data, loading, error };
+}
+
+// Usage
+function UserList() {
+  const { data: users, loading, error } = useApi('/api/users');
+
+  if (loading) return <LoadingSpinner />;
+  if (error) return <ErrorMessage error={error} />;
+
+  return (
+    <ul>
+      {users.map(user => (
+        <li key={user.id}>{user.name}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Form Handling
+
+```javascript
+// Custom hook for form handling
+function useForm(initialValues, validationRules) {
+  const [values, setValues] = useState(initialValues);
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setValues(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleBlur = (e) => {
+    const { name } = e.target;
+    setTouched(prev => ({ ...prev, [name]: true }));
+    
+    // Validate field on blur
+    if (validationRules[name]) {
+      const error = validationRules[name](values[name]);
+      setErrors(prev => ({ ...prev, [name]: error }));
+    }
+  };
+
+  const validate = () => {
+    const newErrors = {};
+    Object.keys(validationRules).forEach(field => {
+      const error = validationRules[field](values[field]);
+      if (error) newErrors[field] = error;
+    });
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  return {
+    values,
+    errors,
+    touched,
+    handleChange,
+    handleBlur,
+    validate,
+    setValues,
+  };
 }
 ```
 

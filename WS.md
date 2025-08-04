@@ -73,6 +73,40 @@ async def chat_endpoint(websocket: WebSocket):
         await websocket.close(code=1011, reason=str(e))
 ```
 
+## 🔄 Room Management
+
+```python
+# Create room endpoint
+@app.get("/create-room")
+def create_room(name: str):
+    room_id = generate_room_code()
+    client_id = uuid4().hex
+    token = create_token({
+        "client_id": client_id, 
+        "room_id": room_id, 
+        "name": name
+    })
+    return {
+        "status": "success", 
+        "token": token, 
+        "room_id": room_id
+    }
+
+# Join room endpoint
+@app.get("/join-room")
+def join_room(name: str, room_id: str):
+    if not manager.room_exists(room_id):
+        raise HTTPException(404, "Room not found")
+    
+    client_id = uuid4().hex
+    token = create_token({
+        "client_id": client_id,
+        "room_id": room_id,
+        "name": name
+    })
+    return {"status": "success", "token": token}
+```
+
 ## ⚛️ React WebSocket Hook
 
 ```javascript
@@ -148,40 +182,6 @@ function ChatRoom({ token }) {
     </div>
   );
 }
-```
-
-## 🔄 Room Management
-
-```python
-# Create room endpoint
-@app.get("/create-room")
-def create_room(name: str):
-    room_id = generate_room_code()
-    client_id = uuid4().hex
-    token = create_token({
-        "client_id": client_id, 
-        "room_id": room_id, 
-        "name": name
-    })
-    return {
-        "status": "success", 
-        "token": token, 
-        "room_id": room_id
-    }
-
-# Join room endpoint
-@app.get("/join-room")
-def join_room(name: str, room_id: str):
-    if not manager.room_exists(room_id):
-        raise HTTPException(404, "Room not found")
-    
-    client_id = uuid4().hex
-    token = create_token({
-        "client_id": client_id,
-        "room_id": room_id,
-        "name": name
-    })
-    return {"status": "success", "token": token}
 ```
 
 ## ⚠️ Common Issues & Solutions
