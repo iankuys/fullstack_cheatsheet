@@ -497,6 +497,37 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
         manager.disconnect(user_id)
 ```
 
+## 🧑‍💻 Python WebSocket Client Example
+
+You can test your FastAPI WebSocket endpoint using a simple Python client with the `websockets` library:
+
+```python
+import asyncio
+import websockets
+import json
+
+async def connect():
+    uri = "ws://localhost:8000/ws"  # Replace with your FastAPI server address
+    async with websockets.connect(uri) as websocket:
+        await websocket.send(json.dumps({"type": "ping"}))
+        response = await websocket.recv()
+        print("Received:", response)
+
+asyncio.run(connect())
+```
+
+**Description:**
+- This script connects to your FastAPI WebSocket endpoint at `/ws`.
+- It sends a JSON message (here, a simple ping).
+- It waits for a response and prints it.
+- Useful for quick local testing or scripting WebSocket interactions.
+
+**Install dependencies:**
+```bash
+pip install websockets
+```
+```
+
 ## 📨 REST API Endpoints & Patterns
 
 ```python
