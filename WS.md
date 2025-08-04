@@ -1,300 +1,213 @@
-# WebSocket Chat Application: Interview Cheatsheet
+# ⚡ WebSocket Chat Cheat Sheet
 
-This cheatsheet provides concise notes, examples, and best practices based on your codebase for building a WebSocket-based chat application using FastAPI and React.
+## 🔐 JWT Auth Setup
 
----
+```python
+def create_token(data, expire_minutes=60):
+    expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
+    return jwt.encode({**data, "exp": expire}, SECRET, ALGORITHM)
 
-## **1. Backend: FastAPI Implementation**
+def validate_token(token):
+    try:
+        return jwt.decode(token, SECRET, [ALGORITHM])
+    except JWTError:
+        raise ValueError("Invalid token")
+```
 
-### **Key Components**
-1. **FastAPI**: Framework for building APIs and WebSocket endpoints.
-2. **JWT Authentication**: Used for secure client identification.
-3. **ConnectionManager**: Manages WebSocket connections and broadcasts messages.
+## 🌐 Connection Manager
 
----
+```python
+class ConnectionManager:
+    def __init__(self):
+        self.connections = defaultdict(list)  # {room_id: [(ws, client_id)]}
+    
+    def connect(self, websocket, room_id, client_id):
+        self.connections[room_id].append((websocket, client_id))
+    
+    def disconnect(self, client_id, room_id):
+        self.connections[room_id] = [
+            (ws, cid) for ws, cid in self.connections[room_id] 
+            if cid != client_id
+        ]
+    
+    async def broadcast_to_room(self, sender_id, message, room_id):
+        for websocket, client_id in self.connections[room_id]:
+            if client_id != sender_id:
+                await websocket.send_text(message)
 
-### **1.1 FastAPI Setup**
-- Add `CORSMiddleware` to handle cross-origin requests:
-  ```python
-  app.add_middleware(
-      CORSMiddleware,
-      allow_origins=["*"],  # Allow all origins for development
-      allow_credentials=True,
-      allow_methods=["*"],
-      allow_headers=["*"],
-  )
-  ```
+manager = ConnectionManager()
+```
 
----
+## 💬 WebSocket Endpoint
 
-### **1.2 JWT Authentication**
-- **Token Creation**:
-  ```python
-  def createToken(data, expire_minutes=60):
-      expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
-      data.update({"exp": expire})
-      return jwt.encode(data, secret, algorithm=ALGO)
-  ```
+```python
+@app.websocket("/ws/chat")
+async def chat_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    
+    # Authenticate
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=1008, reason="Token required")
+        return
+        
+    try:
+        data = validate_token(token)
+        client_id, room_id, name = data["client_id"], data["room_id"], data["name"]
+        manager.connect(websocket, room_id, client_id)
+        
+        while True:
+            message = await websocket.receive_text()
+            broadcast_msg = {
+                "name": name,
+                "message": message,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+            await manager.broadcast_to_room(
+                client_id, json.dumps(broadcast_msg), room_id
+            )
+                
+    except WebSocketDisconnect:
+        manager.disconnect(client_id, room_id)
+    except Exception as e:
+        await websocket.close(code=1011, reason=str(e))
+```
 
-- **Token Validation**:
-  ```python
-  def validateJWTNonHeader(token):
-      try:
-          return jwt.decode(token, secret, algorithms=ALGO)
-      except JWTError:
-          raise ValueError("Invalid JWT token")
-  ```
+## ⚛️ React WebSocket Hook
 
----
+```javascript
+function useWebSocket(url, token) {
+  const [messages, setMessages] = useState([]);
+  const [connectionStatus, setConnectionStatus] = useState('Connecting');
+  const wsRef = useRef(null);
 
-### **1.3 Connection Management**
-- **Connect a Client**:
-  ```python
-  def connect(self, websocket, room_id, client_id):
-      self.connections[room_id].append((websocket, client_id))
-      print(f"Added connection to room {room_id}. Total: {len(self.connections[room_id])}")
-  ```
-
-- **Disconnect a Client**:
-  ```python
-  def disconnect(self, client_id, room_id):
-      self.connections[room_id] = [
-          (ws, cid) for ws, cid in self.connections[room_id] if cid != client_id
-      ]
-      print(f"Removed connection from room {room_id}. Remaining: {len(self.connections[room_id])}")
-  ```
-
-- **Broadcast to Room**:
-  ```python
-  async def broadcast_to_room(self, sender_client_id, message, room_id):
-      for websocket, client_id in self.connections[room_id]:
-          if client_id != sender_client_id:
-              await websocket.send_text(message)
-  ```
-
-- **Ping/Pong Mechanism**:
-  ```python
-  async def ping_pong(websocket: WebSocket):
-      while True:
-          try:
-              await websocket.send_text("ping")
-              await asyncio.sleep(30)  # Send ping every 30 seconds
-          except Exception:
-              break
-  ```
-
-- **Rate Limiting**:
-  ```python
-  from collections import defaultdict
-  from time import time
-
-  message_timestamps = defaultdict(list)
-
-  async def rate_limit(client_id, max_messages=5, time_window=10):
-      now = time()
-      timestamps = message_timestamps[client_id]
-      timestamps = [t for t in timestamps if now - t < time_window]
-      message_timestamps[client_id] = timestamps
-      if len(timestamps) >= max_messages:
-          raise ValueError("Rate limit exceeded")
-  ```
-
-- **Validate Incoming Messages**:
-  ```python
-  def validate_message(message):
-      if not isinstance(message, dict):
-          raise ValueError("Message must be a dictionary")
-      required_keys = {"name", "client_id", "message", "room_id", "timestamp"}
-      if not required_keys.issubset(message.keys()):
-          raise ValueError("Missing required keys in message")
-  ```
-
----
-
-### **1.4 WebSocket Endpoint**
-- **Authenticate and Connect**:
-  ```python
-  @app.websocket("/ws/chat")
-  async def chat(websocket: WebSocket):
-      await websocket.accept()
-      try:
-          token = websocket.query_params.get("token")
-          if not token:
-              raise ValueError("Token is required")
-          data = validateJWTNonHeader(token)
-          client_id, room_id, name = data["client_id"], data["room_id"], data["name"]
-          connection_manager.connect(websocket, room_id, client_id)
-      except Exception as e:
-          await websocket.close(code=1008, reason=str(e))
-          return
-  ```
-
-- **Receive and Broadcast Messages**:
-  ```python
-  while True:
-      try:
-          message = await websocket.receive_text()
-          validate_message(json.loads(message))
-          broadcast_message = {
-              "name": name,
-              "client_id": client_id,
-              "message": message,
-              "room_id": room_id,
-              "timestamp": datetime.utcnow().isoformat(),
-          }
-          await rate_limit(client_id)
-          await connection_manager.broadcast_to_room(client_id, json.dumps(broadcast_message), room_id)
-      except Exception as e:
-          print(f"Error: {e}")
-          break
-  ```
-
----
-
-### **1.5 Room Management**
-- **Create a Room**:
-  ```python
-  @app.get("/create-room")
-  def create(name):
-      room_id = generateRoomCode()
-      client_id = uuid4().hex
-      token = createToken({"client_id": client_id, "room_id": room_id, "name": name})
-      return {"status": "success", "token": token, "room_id": room_id, "client_id": client_id}
-  ```
-
-- **Join a Room**:
-  ```python
-  @app.get("/join-chat-room")
-  def join_room(name, roomId: str):
-      if not connection_manager.room_exists(roomId):
-          return {"status": "error", "message": f"Room {roomId} does not exist."}
-      client_id = uuid4().hex
-      token = createToken({"client_id": client_id, "room_id": roomId, "name": name})
-      return {"status": "success", "token": token, "room_id": roomId, "client_id": client_id}
-  ```
-
----
-
-## **2. Frontend: React Implementation**
-
-### **2.1 WebSocket Connection**
-- **Initialize WebSocket**:
-  ```javascript
   useEffect(() => {
-      wsRef.current = new WebSocket(wsUrl);
+    const wsUrl = `${url}?token=${token}`;
+    wsRef.current = new WebSocket(wsUrl);
 
-      const handleMessage = (event) => {
-          const receivedMessage = JSON.parse(event.data);
-          setMessages((prevMessages) => [...prevMessages, receivedMessage]);
-      };
+    wsRef.current.onopen = () => setConnectionStatus('Connected');
+    wsRef.current.onclose = () => setConnectionStatus('Disconnected');
+    wsRef.current.onerror = () => setConnectionStatus('Error');
+    
+    wsRef.current.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      setMessages(prev => [...prev, message]);
+    };
 
-      wsRef.current.addEventListener("message", handleMessage);
+    return () => {
+      wsRef.current?.close();
+    };
+  }, [url, token]);
 
-      return () => {
-          wsRef.current.removeEventListener("message", handleMessage);
-          wsRef.current.close();
-      };
-  }, [wsUrl]);
-  ```
-
----
-
-### **2.2 Sending Messages**
-- **Send a Message**:
-  ```javascript
-  const handleSendMessage = (message) => {
-      if (wsRef.current.readyState === WebSocket.OPEN) {
-          const messageObj = { name: userData.name, message, timestamp: new Date().toISOString() };
-          wsRef.current.send(JSON.stringify(messageObj));
-          setMessages((prevMessages) => [...prevMessages, messageObj]);
-      }
+  const sendMessage = (message) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(message));
+    }
   };
-  ```
 
----
+  return { messages, sendMessage, connectionStatus };
+}
+```
 
-### **2.3 Handling Edge Cases**
-- **Duplicate Messages**:
-  - Ensure proper cleanup of event listeners in the `useEffect` cleanup function.
-- **Abnormal Closure (Code 1006)**:
-  - Add a ping/pong mechanism to keep the connection alive.
-- **Mixed Content Issues**:
-  - Use `wss://` for secure WebSocket connections.
+## 💬 Chat Component
 
----
+```javascript
+function ChatRoom({ token }) {
+  const { messages, sendMessage, connectionStatus } = useWebSocket(
+    'ws://localhost:8000/ws/chat', 
+    token
+  );
+  const [input, setInput] = useState('');
 
-## **3. Common Challenges and Solutions**
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (input.trim()) {
+      sendMessage(input);
+      setInput('');
+    }
+  };
 
-### **1. Duplicate Messages**
-- **Cause**: Multiple event listeners or improper cleanup.
-- **Solution**: Use `removeEventListener` in the cleanup function.
+  return (
+    <div>
+      <div>Status: {connectionStatus}</div>
+      <div>
+        {messages.map((msg, i) => (
+          <div key={i}>
+            <strong>{msg.name}:</strong> {msg.message}
+          </div>
+        ))}
+      </div>
+      <form onSubmit={handleSubmit}>
+        <input 
+          value={input} 
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="Type message..."
+        />
+        <button type="submit">Send</button>
+      </form>
+    </div>
+  );
+}
+```
 
-### **2. Abnormal Closure**
-- **Cause**: Network issues or server-side errors.
-- **Solution**: Add error handling and reconnection logic.
+## 🔄 Room Management
 
-### **3. Token Validation**
-- **Cause**: Invalid or expired JWT tokens.
-- **Solution**: Validate tokens on the server and close the connection if invalid.
+```python
+# Create room endpoint
+@app.get("/create-room")
+def create_room(name: str):
+    room_id = generate_room_code()
+    client_id = uuid4().hex
+    token = create_token({
+        "client_id": client_id, 
+        "room_id": room_id, 
+        "name": name
+    })
+    return {
+        "status": "success", 
+        "token": token, 
+        "room_id": room_id
+    }
 
----
+# Join room endpoint
+@app.get("/join-room")
+def join_room(name: str, room_id: str):
+    if not manager.room_exists(room_id):
+        raise HTTPException(404, "Room not found")
+    
+    client_id = uuid4().hex
+    token = create_token({
+        "client_id": client_id,
+        "room_id": room_id,
+        "name": name
+    })
+    return {"status": "success", "token": token}
+```
 
-## **4. Best Practices**
+## ⚠️ Common Issues & Solutions
 
-1. **WebSocket Lifecycle Management**:
-   - Properly initialize, handle, and clean up WebSocket connections.
+**Duplicate Messages**
+- ❌ Multiple event listeners
+- ✅ Proper cleanup in useEffect
 
-2. **Error Handling**:
-   - Handle errors gracefully on both the client and server.
+**Connection Drops**
+- ❌ Network timeouts
+- ✅ Ping/pong heartbeat
 
-3. **Authentication**:
-   - Use JWT tokens to authenticate WebSocket connections.
+**Authentication Errors**
+- ❌ Invalid/expired tokens
+- ✅ Server-side token validation
 
-4. **Scalability**:
-   - Use a connection manager to handle multiple rooms and clients efficiently.
+**Mixed Content (HTTP/HTTPS)**
+- ❌ Using `ws://` on HTTPS site
+- ✅ Use `wss://` for secure connections
 
-5. **Security**:
-   - Use `wss://` for secure connections.
-   - Validate all incoming messages and tokens.
+## 🎯 Best Practices
 
----
-
-## **5. Example Scenarios**
-
-### **Scenario 1: User Joins a Room**
-1. User sends a request to `/join-chat-room`.
-2. Server validates the room and generates a JWT token.
-3. User connects to the WebSocket endpoint with the token.
-
-### **Scenario 2: User Sends a Message**
-1. User sends a message via WebSocket.
-2. Server broadcasts the message to all clients in the room, excluding the sender.
-
-### **Scenario 3: User Disconnects**
-1. WebSocket connection is closed.
-2. Server removes the user from the room and cleans up resources.
-
----
-
-## **6. Debugging Tips**
-
-1. **Log Everything**:
-   - Add logs for WebSocket lifecycle events (`open`, `message`, `close`, `error`).
-
-2. **Test with Multiple Browsers**:
-   - Test in Chrome, Firefox, and other browsers to identify browser-specific issues.
-
-3. **Simulate Errors**:
-   - Disconnect the server or introduce invalid tokens to test error handling.
-
-4. **Monitor WebSocket State**:
-   - Use browser developer tools to inspect WebSocket connections.
-
----
-
-## **7. Key Takeaways**
-
-- WebSocket is ideal for real-time communication but requires careful management of connections and state.
-- JWT tokens provide a secure way to authenticate WebSocket connections.
-- Proper error handling and cleanup are essential to avoid issues like duplicate messages or connection leaks.
-- Testing with multiple clients and browsers is crucial to ensure robustness.
+✅ **Always authenticate** WebSocket connections  
+✅ **Clean up** event listeners and connections  
+✅ **Validate messages** on server side  
+✅ **Handle reconnection** gracefully  
+✅ **Use secure connections** (wss://)  
+✅ **Implement rate limiting** for message spam  
+✅ **Log all events** for debugging
